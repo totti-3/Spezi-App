@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spezi Finder</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#d4351c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg:#f4f1ea; --card:#fff; --fg:#1f1f1f; --mut:#6f6b63; --bd:#e4dfd3;
+    --acc:#d4351c; --acc2:#8f1d0c; --ok:#1b8a4b; --chip:#efe9dc;
+    --shadow:0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16140f; --card:#211e17; --fg:#f1ede3; --mut:#a49f93; --bd:#383327; --chip:#2d2920; --shadow:none; --ok:#4cc27f; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--fg); }
+  a { color:var(--acc); }
+  header { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff; padding:22px 16px 62px; }
+  .wrap { max-width:1180px; margin:0 auto; padding:0 16px; }
+  header h1 { margin:0; font-size:1.6rem; letter-spacing:-.01em; }
+  header p { margin:4px 0 0; opacity:.85; }
+  .search { background:var(--card); border-radius:14px; box-shadow:var(--shadow); padding:12px; margin-top:-42px;
+            display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .search input, .search select { padding:11px 12px; font:inherit; border:1px solid var(--bd); border-radius:10px; background:var(--bg); color:var(--fg); }
+  .search input { flex:1; min-width:200px; }
+  .btn { padding:11px 16px; font:inherit; font-weight:600; border:none; border-radius:10px; background:var(--acc); color:#fff; cursor:pointer; }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.sec { background:var(--chip); color:var(--fg); }
+  .btn.sm { padding:6px 10px; font-size:.85rem; border-radius:8px; }
+  #status { margin:12px 2px 0; color:var(--mut); min-height:1.4em; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0; }
+  .chip { background:var(--card); border:1px solid var(--bd); border-radius:999px; padding:5px 12px; font-size:.88rem; box-shadow:var(--shadow); }
+  .chip b { color:var(--acc); }
+  .layout { display:grid; grid-template-columns:1fr 1.05fr; gap:16px; margin-top:14px; align-items:start; }
+  @media (max-width:860px){ .layout{ grid-template-columns:1fr; } }
+  #map { height:calc(100vh - 40px); max-height:640px; min-height:320px; border-radius:14px; box-shadow:var(--shadow); position:sticky; top:12px; z-index:0; }
+  @media (max-width:860px){ #map{ position:static; height:320px; } }
+  .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .seg { display:inline-flex; background:var(--chip); border-radius:10px; padding:3px; }
+  .seg button { border:none; background:none; color:var(--fg); padding:6px 12px; border-radius:8px; font:inherit; font-size:.88rem; cursor:pointer; }
+  .seg button.on { background:var(--card); font-weight:600; box-shadow:var(--shadow); }
+  label.chk { font-size:.88rem; color:var(--mut); display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:12px 14px; margin-bottom:10px; box-shadow:var(--shadow); transition:border-color .15s; }
+  .card.sel { border-color:var(--acc); }
+  .card .top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .name { font-weight:650; }
+  .sub { color:var(--mut); font-size:.85rem; }
+  .badge { background:var(--acc); color:#fff; font-weight:700; border-radius:10px; padding:4px 10px; white-space:nowrap; }
+  .badge.low { background:var(--ok); }
+  .badge.none { background:var(--chip); color:var(--mut); font-weight:500; font-size:.82rem; }
+  .plines { margin-top:8px; border-top:1px dashed var(--bd); padding-top:6px; }
+  .pl { display:flex; justify-content:space-between; gap:8px; font-size:.88rem; padding:2px 0; }
+  .pl span:last-child { color:var(--mut); text-align:right; }
+  .tag { font-size:.72rem; background:var(--acc); color:#fff; border-radius:999px; padding:1px 7px; margin-left:4px; vertical-align:1px; }
+  .tag.own { background:#3b6fd4; }
+  .actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .actions a.btn { text-decoration:none; }
+  details { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:10px 14px; margin:16px 0; box-shadow:var(--shadow); }
+  summary { cursor:pointer; font-weight:650; }
+  .links { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .links a { text-decoration:none; }
+  .note { font-size:.82rem; color:var(--mut); padding:6px 0 30px; }
+  .pin { background:var(--acc); color:#fff; font-weight:700; font-size:12px; border-radius:10px; padding:2px 6px; border:2px solid #fff; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.35); transform:translate(-50%,-50%); width:max-content; }
+  .pin.low { background:#1b8a4b; }
+  .dot { background:#6f6b63; width:10px; height:10px; border-radius:50%; border:2px solid #fff; transform:translate(-50%,-50%); }
+  .empty { color:var(--mut); padding:20px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>🥤 Paulaner Spezi Finder</h1>
+    <p>Märkte in deiner Nähe – mit gemeldeten Preisen und Angeboten</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="search">
+    <input type="text" id="addr" placeholder="Adresse, PLZ oder Stadt …">
+    <button class="btn sec" id="geo">📍 Mein Standort</button>
+    <select id="rad">
+      <option value="2000">2 km</option>
+      <option value="5000" selected>5 km</option>
+      <option value="10000">10 km</option>
+      <option value="20000">20 km</option>
+    </select>
+    <button class="btn" id="go">Suchen</button>
+  </div>
+  <div id="status"></div>
+  <div class="chips" id="chips"></div>
+
+  <div class="layout">
+    <div id="map"></div>
+    <div>
+      <div class="tools">
+        <div class="seg" id="sort">
+          <button data-s="dist" class="on">Nächste</button>
+          <button data-s="price">Günstigste</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="onlyPrice"> nur mit Preis</label>
+      </div>
+      <div id="stores"><div class="empty">Gib oben eine Adresse ein und tippe auf „Suchen“.</div></div>
+    </div>
+  </div>
+
+  <details>
+    <summary>🏷️ Aktuelle Prospekt-Angebote ansehen</summary>
+    <div class="links">
+      <a class="btn sec" target="_blank" rel="noopener" href="https://www.marktguru.de/search/Paulaner%20Spezi">Marktguru ↗</a>
+      <a class="btn sec" target="_blank" rel="noopener" href="https://www.kaufda.de/Angebote/Paulaner-Spezi">KaufDA ↗</a>
+      <a class="btn sec" target="_blank" rel="noopener" href="https://www.mydealz.de/search?q=Paulaner%20Spezi">mydealz ↗</a>
+    </div>
+  </details>
+
+  <p class="note">
+    Preise stammen aus Open Prices (von Nutzern gemeldete Regalpreise, jeweils mit Datum) oder sind deine eigenen Einträge (nur in diesem Browser gespeichert).
+    Märkte: OpenStreetMap. Freie Schnittstellen zu Lagerbestand und offiziellen Angeboten einzelner Märkte gibt es nicht –
+    „Kein Preis gemeldet“ heißt nur: niemand hat dort bisher einen Preis eingetragen.
+    Preise bei <a href="https://prices.openfoodfacts.org" target="_blank" rel="noopener">prices.openfoodfacts.org</a> kannst du auch selbst melden.
+  </p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const eur = n => Number(n).toFixed(2).replace('.', ',') + ' €';
+const fdate = d => { try { return new Date(d).toLocaleDateString('de-DE'); } catch { return d || ''; } };
+const setStatus = t => $('status').textContent = t;
+
+let pos = null, stores = [], sortBy = 'dist', selected = -1;
+const markers = [];
+
+/* ---------- Karte ---------- */
+const map = L.map('map').setView([51.1, 10.4], 6);
+const osmDe = L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
+  maxZoom:18, attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+let fell = false;
+osmDe.on('tileerror', () => {
+  if (fell) return; fell = true; map.removeLayer(osmDe);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri' }).addTo(map);
+});
+const layer = L.layerGroup().addTo(map);
+
+/* ---------- Helfer ---------- */
+function dist(a, b, c, d) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(c-a)/2)**2 + Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function parseLiters(str) {
+  if (!str) return null;
+  const m = String(str).replace(',', '.').match(/(?:(\d+)\s*[x×]\s*)?([\d.]+)\s*(ml|cl|l)\b/i);
+  if (!m) return null;
+  const n = (m[1] ? +m[1] : 1) * parseFloat(m[2]);
+  const u = m[3].toLowerCase();
+  return u === 'l' ? n : u === 'cl' ? n / 100 : n / 1000;
+}
+const ownKey = s => `spezi:${s.lat.toFixed(5)},${s.lon.toFixed(5)}`;
+function getOwn(s) { try { return JSON.parse(localStorage.getItem(ownKey(s)) || 'null'); } catch { return null; } }
+function setOwn(s, v) { try { localStorage.setItem(ownKey(s), JSON.stringify(v)); } catch { alert('Speichern im Browser nicht möglich.'); } }
+
+/* ---------- Daten ---------- */
+async function geocode(q) {
+  const j = await (await fetch('https://photon.komoot.io/api/?limit=1&lang=de&q=' + encodeURIComponent(q))).json();
+  const f = j.features?.[0];
+  if (!f) throw new Error('Adresse nicht gefunden');
+  return { lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0] };
+}
+async function loadStores(p, rad) {
+  const q = `[out:json][timeout:25];(nwr["shop"~"^(supermarket|beverages|convenience|kiosk)$"](around:${rad},${p.lat},${p.lon}););out center 250;`;
+  const j = await (await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body:'data=' + encodeURIComponent(q) })).json();
+  return j.elements.map(e => {
+    const lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon, t = e.tags || {};
+    return { osmId:e.id, osmType:e.type, name:t.name || t.brand || '(ohne Namen)', type:t.shop, lat, lon,
+      addr:[t['addr:street'], t['addr:housenumber'], t['addr:city']].filter(Boolean).join(' '),
+      km:dist(p.lat, p.lon, lat, lon), prices:[] };
+  }).filter(s => s.lat);
+}
+async function findProducts() {
+  const u = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent('Paulaner Spezi')
+    + '&search_simple=1&action=process&json=1&page_size=40&fields=code,product_name,brands,quantity';
+  const j = await (await fetch(u)).json();
+  return (j.products || []).filter(x => /paulaner/i.test((x.brands || '') + ' ' + (x.product_name || '')) && /spezi/i.test(x.product_name || ''));
+}
+async function loadPrices(p, rad, products) {
+  const out = [];
+  await Promise.all(products.slice(0, 10).map(async prod => {
+    try {
+      const j = await (await fetch(`https://prices.openfoodfacts.org/api/v1/prices?product_code=${prod.code}&order_by=-date&size=100&include_product=true`)).json();
+      for (const pr of j.items || []) {
+        const l = pr.location;
+        if (!l || l.osm_lat == null || pr.currency !== 'EUR') continue;
+        if (dist(p.lat, p.lon, l.osm_lat, l.osm_lon) * 1000 > rad + 300) continue;
+        let liters = null;
+        const pq = pr.product?.product_quantity;
+        if (pq) liters = (String(pr.product?.product_quantity_unit || 'g').toLowerCase() === 'l') ? +pq : +pq / 1000;
+        liters = liters || parseLiters(prod.quantity);
+        out.push({ price:pr.price, date:pr.date, disc:pr.price_is_discounted, orig:pr.price_without_discount,
+          osmId:l.osm_id, osmType:String(l.osm_type || '').toLowerCase(), lat:l.osm_lat, lon:l.osm_lon,
+          name:l.osm_name || 'Markt', label:prod.quantity || prod.product_name || 'Spezi', liters });
+      }
+    } catch { /* Produkt überspringen */ }
+  }));
+  return out;
+}
+function attach(list, prices, center) {
+  for (const pr of prices) {
+    let s = list.find(x => x.osmId === pr.osmId && x.osmType === pr.osmType);
+    if (!s) {
+      let best = null, bd = 0.12;
+      for (const x of list) { const d = dist(x.lat, x.lon, pr.lat, pr.lon); if (d < bd) { bd = d; best = x; } }
+      s = best;
+    }
+    if (!s) { s = { name:pr.name, type:'Preis-Meldung', lat:pr.lat, lon:pr.lon, addr:'', km:dist(center.lat, center.lon, pr.lat, pr.lon), prices:[] }; list.push(s); }
+    s.prices.push(pr);
+  }
+  for (const s of list) {
+    s.prices.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const seen = new Set();
+    s.prices = s.prices.filter(p => { const k = p.label; if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+}
+
+/* ---------- Anzeige ---------- */
+function bestPrice(s) {
+  const own = getOwn(s);
+  const all = s.prices.map(p => p.price).concat(own ? [own.price] : []);
+  return all.length ? Math.min(...all) : null;
+}
+function render() {
+  layer.clearLayers(); markers.length = 0;
+  L.circleMarker([pos.lat, pos.lon], { radius:9, color:'#fff', weight:3, fillColor:'#2f6fe4', fillOpacity:1 }).addTo(layer).bindPopup('Dein Standort');
+
+  const withBest = stores.map((s, i) => ({ s, i, best:bestPrice(s) }));
+  const cheapest = Math.min(...withBest.filter(x => x.best != null).map(x => x.best), Infinity);
+  let rows = withBest.filter(x => !$('onlyPrice').checked || x.best != null);
+  rows.sort(sortBy === 'price'
+    ? (a, b) => (a.best ?? 1e9) - (b.best ?? 1e9) || a.s.km - b.s.km
+    : (a, b) => a.s.km - b.s.km);
+
+  const nPrice = withBest.filter(x => x.best != null).length;
+  const cheapRow = withBest.find(x => x.best === cheapest);
+  $('chips').innerHTML = `<span class="chip"><b>${stores.length}</b> Märkte</span><span class="chip"><b>${nPrice}</b> mit Preis</span>`
+    + (cheapRow ? `<span class="chip">Günstigster: <b>${eur(cheapest)}</b> bei ${esc(cheapRow.s.name)}</span>` : '');
+
+  // Karten-Marker (alle Märkte, mit Preis als Etikett)
+  for (const { s, i, best } of withBest) {
+    const icon = best != null
+      ? L.divIcon({ className:'', html:`<div class="pin ${best === cheapest ? 'low' : ''}">${eur(best)}</div>`, iconSize:[0, 0] })
+      : L.divIcon({ className:'', html:'<div class="dot"></div>', iconSize:[0, 0] });
+    const m = L.marker([s.lat, s.lon], { icon }).addTo(layer);
+    m.bindTooltip(esc(s.name));
+    m.on('click', () => select(i, true));
+    markers[i] = m;
+  }
+
+  $('stores').innerHTML = rows.map(({ s, i, best }) => {
+    const own = getOwn(s);
+    const lines = s.prices.map(p => {
+      const lp = p.liters ? ` · ${eur(p.price / p.liters)}/L` : '';
+      return `<div class="pl"><span>${esc(p.label)}${p.disc ? '<span class="tag">Angebot</span>' : ''}</span>
+        <span><b>${eur(p.price)}</b>${p.disc && p.orig ? ' (statt ' + eur(p.orig) + ')' : ''}${lp} · ${fdate(p.date)}</span></div>`;
+    }).join('') + (own ? `<div class="pl"><span>Eigener Eintrag<span class="tag own">du</span>${own.note ? ' · ' + esc(own.note) : ''}</span><span><b>${eur(own.price)}</b> · ${fdate(own.date)}</span></div>` : '');
+    return `<div class="card ${i === selected ? 'sel' : ''}" id="card-${i}">
+      <div class="top"><div><div class="name">${esc(s.name)}</div>
+        <div class="sub">${esc(s.type || '')} · ${s.km.toFixed(1).replace('.', ',')} km${s.addr ? ' · ' + esc(s.addr) : ''}</div></div>
+        <div class="badge ${best == null ? 'none' : best === cheapest ? 'low' : ''}">${best == null ? 'Kein Preis gemeldet' : 'ab ' + eur(best)}</div></div>
+      ${lines ? `<div class="plines">${lines}</div>` : ''}
+      <div class="actions">
+        <button class="btn sec sm" onclick="addPrice(${i})">✏️ Preis eintragen</button>
+        <a class="btn sec sm" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}">🧭 Route</a>
+        <button class="btn sec sm" onclick="select(${i}, false)">🗺️ Auf Karte</button>
+      </div></div>`;
+  }).join('') || '<div class="empty">Keine passenden Märkte.</div>';
+}
+function select(i, scroll) {
+  selected = i;
+  document.querySelectorAll('.card.sel').forEach(e => e.classList.remove('sel'));
+  const c = $('card-' + i);
+  if (c) { c.classList.add('sel'); if (scroll) c.scrollIntoView({ behavior:'smooth', block:'center' }); }
+  const s = stores[i];
+  if (s) map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), 16), { duration:.6 });
+}
+function addPrice(i) {
+  const s = stores[i];
+  const v = prompt(`Preis für Paulaner Spezi bei „${s.name}“ (z. B. 1,29):`);
+  if (v == null) return;
+  const price = parseFloat(String(v).replace(',', '.'));
+  if (!(price > 0)) { alert('Bitte eine Zahl eingeben.'); return; }
+  const note = prompt('Notiz (z. B. 0,5 l, Angebot bis Samstag) – optional:') || '';
+  setOwn(s, { price, note, date:new Date().toISOString().slice(0, 10) });
+  render();
+}
+
+/* ---------- Ablauf ---------- */
+async function run() {
+  try {
+    const rad = +$('rad').value;
+    if (!pos) { setStatus('Adresse wird gesucht …'); pos = await geocode($('addr').value); }
+    map.setView([pos.lat, pos.lon], rad > 5000 ? 11 : 13);
+    setStatus('Lade Märkte und Preise …');
+    const [list, prods] = await Promise.all([loadStores(pos, rad), findProducts().catch(() => [])]);
+    const prices = await loadPrices(pos, rad, prods);
+    attach(list, prices, pos);
+    stores = list; selected = -1;
+    render();
+    setStatus(prods.length ? '' : 'Hinweis: Spezi-Produkte konnten nicht geladen werden – es werden nur Märkte und eigene Preise gezeigt.');
+  } catch (e) { setStatus('Fehler: ' + e.message); }
+}
+
+$('go').onclick = () => { pos = null; run(); };
+$('addr').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
+$('rad').onchange = () => { if (pos) run(); };
+$('onlyPrice').onchange = () => { if (pos) render(); };
+$('sort').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  sortBy = b.dataset.s;
+  document.querySelectorAll('#sort button').forEach(x => x.classList.toggle('on', x === b));
+  if (pos) render();
+};
+$('geo').onclick = () => navigator.geolocation.getCurrentPosition(
+  g => { pos = { lat:g.coords.latitude, lon:g.coords.longitude }; run(); },
+  () => setStatus('Standort verweigert – gib eine Adresse ein.'));
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
